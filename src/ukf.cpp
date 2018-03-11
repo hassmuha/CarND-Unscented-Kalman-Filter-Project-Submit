@@ -27,12 +27,11 @@ UKF::UKF() {
   // initial covariance matrix
   P_ = MatrixXd(5, 5);
 
-  //TODO : Change these process noise value according to lecture
-  // Process noise standard deviation longitudinal acceleration in m/s^2
+  // Started with 1 m2/s4 for bike then change it according to NIS and RMSE
   std_a_ = 0.8;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = .3; //using v = rw and putting value of v = 1 (tangential velocity (coming from std_a_ as this we expect the cycle can maximum accelerate)) r = 15 (coming from lecture)
+  std_yawdd_ = .3; //Started with 0.1 for bike then change it according to NIS and RMSE
 
   //NOTE : DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
   // lidar measurement noise standard deviation position1 in m
@@ -81,7 +80,7 @@ UKF::UKF() {
       }
   }
 
-  // NIS
+  // for NIS calculation
   NIS_lidar_ = 0.;
   NIS_radar_ = 0.;
   NIS_L_exceed_count = 0;
@@ -131,7 +130,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       //ekf_.x_ << px, py, 5, 0;
       x_ << px, py, 0., 0., 0.;
       P_.setZero(n_x_, n_x_);
-      P_(0,0) = (std_radr_ + std_radphi_) * (std_radr_ + std_radphi_); //
+      P_(0,0) = (std_radr_ + std_radphi_) * (std_radr_ + std_radphi_); //and we have measurement noise distribution available
       P_(1,1) = (std_radr_ + std_radphi_) * (std_radr_ + std_radphi_);
       P_(2,2) = 1.; //we cannot estimate this so keep it like this
       P_(3,3) = 1.; //we cannot estimate this so keep it like this
@@ -163,8 +162,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
     // done initializing, no need to predict or update
     is_initialized_ = true;
-    //cout << "x_ = " << x_ << endl;
-    //cout << "P_ = " << P_ << endl;
     return;
   }
   //compute the time elapsed between the current and previous measurements
@@ -172,13 +169,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   time_us_ = meas_package.timestamp_;
 
 
-  // Predict State
+  // 1- Predict State
   Prediction(delta_t);
-  //cout << "Predict State" << endl;
-  //cout << "x_ = " << x_ << endl;
-  // Measurement Update
-  //cout << "Measurement Update" << endl;
 
+  // 2- Measurement Update
+  //cout << "Measurement Update" << endl;
   if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
     // For Radar
 	  UpdateRadar(meas_package);
@@ -188,8 +183,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 	  UpdateLidar(meas_package);
 
   }
-  //cout << "x_ = " << x_ << endl;
-  //cout << "P_ = " << P_ << endl;
 
 }
 
@@ -206,9 +199,9 @@ void UKF::Prediction(double delta_t) {
   vector, x_. Predict sigma points, the state, and the state covariance matrix.
   */
 
-  GenerateSigmaPoints();
-  SigmaPointPrediction(delta_t);
-  PredictMeanAndCovariance();
+  GenerateSigmaPoints(); //generated augmented sigma points
+  SigmaPointPrediction(delta_t); //Sigma points prediction step
+  PredictMeanAndCovariance(); //Predict mean and covariance
 }
 
 /**
@@ -280,9 +273,9 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   //update state mean and covariance matrix
   VectorXd y = z - z_pred;
   x_ = x_ + (K * y);
-
   P_ = P_ - (K*S*K.transpose());
 
+  //Calculate the NIS
   NIS_lidar_ = y.transpose() * Si * y;
   NIS_L_count++;
   if (NIS_lidar_ > 5.991) {
@@ -291,8 +284,8 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   if (NIS_radar_ > 0.103) {
     NIS_L_exceed_count1++;
   }
-  cout << "NIS above 5.991 for lidar = " << double(NIS_L_exceed_count)/double(NIS_L_count)*100 << "%" << endl;
-  cout << "NIS above 0.103 for lidar = " << double(NIS_L_exceed_count1)/double(NIS_R_count)*100 << "%" << endl;
+  //cout << "NIS above 5.991 for lidar = " << double(NIS_L_exceed_count)/double(NIS_L_count)*100 << "%" << endl;
+  //cout << "NIS above 0.103 for lidar = " << double(NIS_L_exceed_count1)/double(NIS_R_count)*100 << "%" << endl;
 }
 
 /**
@@ -339,7 +332,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    VectorXd radphi_array = VectorXd(2*n_aug_+1);
    VectorXd radrd_array = VectorXd(2*n_aug_+1);
 
-   //FIXME : divide by zero in equation below
+   //Divide by zero already done in SigmaPointPrediction
    for( int i = 0; i < 2*n_aug_+1; i++ ) {
      radr_array(i) = sqrt((px_array(i)*px_array(i)) + (py_array(i)*py_array(i)));
      radphi_array(i) = atan2(py_array(i),px_array(i));
@@ -384,12 +377,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    //making the y(1) value between the range -pi and pi.
    while (y(1)> M_PI) y(1)-=2.*M_PI;
    while (y(1)<-M_PI) y(1)+=2.*M_PI;
-
    x_ = x_ + (K * y);
-
    P_ = P_ - (K*S*K.transpose());
 
-
+   //NIS calculation
    NIS_radar_ = y.transpose() * Si * y;
    NIS_R_count++;
    if (NIS_radar_ > 7.815) {
@@ -398,8 +389,8 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    if (NIS_radar_ > 0.352) {
      NIS_R_exceed_count1++;
    }
-   cout << "NIS above 7.815 for Radar = " << double(NIS_R_exceed_count)/double(NIS_R_count)*100 << "%" << endl;
-   cout << "NIS above 0.352 for Radar = " << double(NIS_R_exceed_count1)/double(NIS_R_count)*100 << "%" << endl;
+   //cout << "NIS above 7.815 for Radar = " << double(NIS_R_exceed_count)/double(NIS_R_count)*100 << "%" << endl;
+   //cout << "NIS above 0.352 for Radar = " << double(NIS_R_exceed_count1)/double(NIS_R_count)*100 << "%" << endl;
  }
 
 
