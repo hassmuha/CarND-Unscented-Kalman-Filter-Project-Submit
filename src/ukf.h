@@ -16,8 +16,8 @@ public:
   ///* initially set to false, set to true in first call of ProcessMeasurement
   bool is_initialized_;
 
-  ///* if this is false, laser measurements will be ignored (except for init)
-  bool use_laser_;
+  ///* if this is false, lidar measurements will be ignored (except for init)
+  bool use_lidar_;
 
   ///* if this is false, radar measurements will be ignored (except for init)
   bool use_radar_;
@@ -43,10 +43,10 @@ public:
   ///* Process noise standard deviation yaw acceleration in rad/s^2
   double std_yawdd_;
 
-  ///* Laser measurement noise standard deviation position1 in m
+  ///* lidar measurement noise standard deviation position1 in m
   double std_laspx_;
 
-  ///* Laser measurement noise standard deviation position2 in m
+  ///* lidar measurement noise standard deviation position2 in m
   double std_laspy_;
 
   ///* Radar measurement noise standard deviation radius in m
@@ -70,6 +70,17 @@ public:
   ///* Sigma point spreading parameter
   double lambda_;
 
+  // NIS lidar
+  double NIS_lidar_;
+  int NIS_L_exceed_count;
+  int NIS_L_exceed_count1;
+  int NIS_L_count;
+
+  // NIS Radar
+  double NIS_radar_;
+  int NIS_R_exceed_count;
+  int NIS_R_exceed_count1;
+  int NIS_R_count;
 
   /**
    * Constructor
@@ -83,7 +94,7 @@ public:
 
   /**
    * ProcessMeasurement
-   * @param meas_package The latest measurement data of either radar or laser
+   * @param meas_package The latest measurement data of either radar or lidar
    */
   void ProcessMeasurement(MeasurementPackage meas_package);
 
@@ -95,7 +106,7 @@ public:
   void Prediction(double delta_t);
 
   /**
-   * Updates the state and the state covariance matrix using a laser measurement
+   * Updates the state and the state covariance matrix using a lidar measurement
    * @param meas_package The measurement at k+1
    */
   void UpdateLidar(MeasurementPackage meas_package);

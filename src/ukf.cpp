@@ -15,8 +15,8 @@ UKF::UKF() {
   // if not initialized
   is_initialized_ = false;
 
-  // if this is false, laser measurements will be ignored (except during init)
-  use_laser_ = true;
+  // if this is false, lidar measurements will be ignored (except during init)
+  use_lidar_ = true;
 
   // if this is false, radar measurements will be ignored (except during init)
   use_radar_ = true;
@@ -29,16 +29,16 @@ UKF::UKF() {
 
   //TODO : Change these process noise value according to lecture
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 1;
+  std_a_ = 0.8;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.6; //using v = rw and putting value of v = 1 (tangential velocity (coming from std_a_ as this we expect the cycle can maximum accelerate)) r = 15 (coming from lecture)
+  std_yawdd_ = .3; //using v = rw and putting value of v = 1 (tangential velocity (coming from std_a_ as this we expect the cycle can maximum accelerate)) r = 15 (coming from lecture)
 
   //NOTE : DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
-  // Laser measurement noise standard deviation position1 in m
+  // lidar measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
 
-  // Laser measurement noise standard deviation position2 in m
+  // lidar measurement noise standard deviation position2 in m
   std_laspy_ = 0.15;
 
   // Radar measurement noise standard deviation radius in m
@@ -80,13 +80,23 @@ UKF::UKF() {
           weights_(i) = 1/(2*(lambda_ + n_aug_));
       }
   }
+
+  // NIS
+  NIS_lidar_ = 0.;
+  NIS_radar_ = 0.;
+  NIS_L_exceed_count = 0;
+  NIS_L_exceed_count1 = 0;
+  NIS_L_count = 0;
+  NIS_R_exceed_count = 0;
+  NIS_R_exceed_count1 = 0;
+  NIS_R_count = 0;
 }
 
 UKF::~UKF() {}
 
 /**
  * @param {MeasurementPackage} meas_package The latest measurement data of
- * either radar or laser.
+ * either radar or lidar.
  */
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   /**
@@ -153,8 +163,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
     // done initializing, no need to predict or update
     is_initialized_ = true;
-    cout << "x_ = " << x_ << endl;
-    cout << "P_ = " << P_ << endl;
+    //cout << "x_ = " << x_ << endl;
+    //cout << "P_ = " << P_ << endl;
     return;
   }
   //compute the time elapsed between the current and previous measurements
@@ -164,22 +174,22 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
   // Predict State
   Prediction(delta_t);
-  cout << "Predict State" << endl;
-  cout << "x_ = " << x_ << endl;
+  //cout << "Predict State" << endl;
+  //cout << "x_ = " << x_ << endl;
   // Measurement Update
-  cout << "Measurement Update" << endl;
+  //cout << "Measurement Update" << endl;
 
   if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
     // For Radar
 	  UpdateRadar(meas_package);
 
   } else {
-    // For Laser
+    // For lidar
 	  UpdateLidar(meas_package);
 
   }
-  cout << "x_ = " << x_ << endl;
-  cout << "P_ = " << P_ << endl;
+  //cout << "x_ = " << x_ << endl;
+  //cout << "P_ = " << P_ << endl;
 
 }
 
@@ -202,7 +212,7 @@ void UKF::Prediction(double delta_t) {
 }
 
 /**
- * Updates the state and the state covariance matrix using a laser measurement.
+ * Updates the state and the state covariance matrix using a lidar measurement.
  * @param {MeasurementPackage} meas_package
  */
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
@@ -272,6 +282,17 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   x_ = x_ + (K * y);
 
   P_ = P_ - (K*S*K.transpose());
+
+  NIS_lidar_ = y.transpose() * Si * y;
+  NIS_L_count++;
+  if (NIS_lidar_ > 5.991) {
+    NIS_L_exceed_count++;
+  }
+  if (NIS_radar_ > 0.103) {
+    NIS_L_exceed_count1++;
+  }
+  cout << "NIS above 5.991 for lidar = " << double(NIS_L_exceed_count)/double(NIS_L_count)*100 << "%" << endl;
+  cout << "NIS above 0.103 for lidar = " << double(NIS_L_exceed_count1)/double(NIS_R_count)*100 << "%" << endl;
 }
 
 /**
@@ -367,6 +388,18 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    x_ = x_ + (K * y);
 
    P_ = P_ - (K*S*K.transpose());
+
+
+   NIS_radar_ = y.transpose() * Si * y;
+   NIS_R_count++;
+   if (NIS_radar_ > 7.815) {
+     NIS_R_exceed_count++;
+   }
+   if (NIS_radar_ > 0.352) {
+     NIS_R_exceed_count1++;
+   }
+   cout << "NIS above 7.815 for Radar = " << double(NIS_R_exceed_count)/double(NIS_R_count)*100 << "%" << endl;
+   cout << "NIS above 0.352 for Radar = " << double(NIS_R_exceed_count1)/double(NIS_R_count)*100 << "%" << endl;
  }
 
 
